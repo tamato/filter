@@ -77,7 +77,7 @@ rl.on('line', (line) => {
    // Print out Errors
    console.log('---------------------- [[ File ]] -------------------------------');
    console.log(`From file: ${target}`)
-   var row = lines[1].split(',');
+   var row = lines[1].split(',', 4);
    console.log(`${row[3]}`);
    console.log('');
 
@@ -109,7 +109,7 @@ function search(lines, searchColumns, queries, headers, outFile) {
    var output = '';
    var i, j, k;
    for (i=0; i<lines.length; ++i) {
-      var row = lines[i].split(',');
+      var row = lines[i].split(',', 4);
 
       for (j = 0; j < searchColumns.length; ++j){
          var col = searchColumns[j];
