@@ -6,11 +6,12 @@ var execSync = require('child_process').execSync;
 
 var program = require('commander'); // npm install --save commander
 program
-   .option('-s, --search <misc term to search for>', 'Misc query to find')
-   .option('-f, --file <file>', 'File to parse, default is ~/bin/dlog/latest.csv')
-   .option('-u, --update', 'Update the latest.csv file')
-   .option('-e, --no-errors', 'Do not print out *_error entries')
    .option('-a, --no-alarms', 'Do not print out alarms')
+   .option('-e, --no-errors', 'Do not print out *_error entries')
+   .option('-f, --file <file>', 'File to parse, default is ~/bin/dlog/latest.csv')
+   .option('-o, --out-file <file>', 'File to write results to')
+   .option('-s, --search <query>', 'Misc query to find')
+   .option('-u, --update', 'Update the latest.csv file')
    .on('--help', function (){
       console.log('');
       console.log('Common terms to search for:');
@@ -58,7 +59,7 @@ rl.on('line', (line) => {
     lines.push( line );
 }).on('close', () => {
    // print out file description, found in column 4
-   // column 0 is the line number
+   // column 0 is the count number
    // column 1 has the time stamp
    // column 2 output type (*_error, *_info) and file the message comes from
    // column 3 output message
@@ -70,27 +71,97 @@ rl.on('line', (line) => {
    console.log(`${row[3]}`);
    console.log('');
 
-   if (program.errors == true) {
-      search(lines, '_error', 'Errors')
+   var cols = [2,3];
+   var queryList = [];
+   var searchHeader = [];
+   if (program.search) {
+      queryList.append(program.search);
+      searchHeader.append(`Misc Search: ${program.search}`);
    }
-
+   if (program.errors == true) {
+      queryList.append('_error');
+      searchHeader.append('Errors');
+   }
    if (program.alarms == true) {
-      search(lines, 'Alarm raised', 'Alarms')
+      queryList.append('Alarm raised: ');
+      searchHeader.append('Alarms');
    }
 
    if (program.search) {
-      search(lines, program.search, `Misc Search: ${program.search}`)
+      misc_search(lines, program.search, `Misc Search: ${program.search}`);
    }
+   else {
+      if (program.errors == true) {
+         search(lines, 2, '_error', 'Errors')
+      }
+
+      if (program.alarms == true) {
+         search(lines, 3, 'Alarm raised: ', 'Alarms')
+      }
+   }
+
+   if (program.outFile) {
+      var output = '';
+      var i;
+      for (i=0; i<lines.length; ++i) {
+         var row = lines[i].split(',');
+         if (row[2]) {
+            var anyErrors = (row[2].search(new RegExp('_error', "i")) != -1);
+            var customSearch = false;
+            if (program.search) {
+               customSearch = (row[2].search(new RegExp(program.search, "i")) != -1);
+            }
+
+            if ( anyErrors || customSearch ) {
+               output += row[0] + ',' + row[1] + ',' + row[2] + ',' + row[3] + ',\n'
+            }
+         }
+         else if (row[3]) {
+            var anyAlarms = (row[3].search(new RegExp('Alarm raised:', "i")) != -1);
+            var customSearch = false;
+            if (program.search) {
+               customSearch = (row[3].search(new RegExp(program.search, "i")) != -1);
+            }
+
+            if ( anyAlarms || customSearch ) {
+               output += row[0] + ',' + row[1] + ',' + row[2] + ',' + row[3] + ',\n'
+            }
+         }
+      }
+      fs.writeFileSync(program.outFile, output);
+   }
+
+   // console.log(program.opts());
 });
 
-function search(lines, query, header) {
+function search(lines, searchColumns, queries, headers) {
+   var i;
+   for (i=0; i<lines.length; ++i) {
+      var row = lines[i].split(',');
+
+      var j = 0;
+      for (j = 0; j < searchColumns.length; ++j){
+         console.log(`---------------------- [[ ${headers[j]} ]] -------------------------------`);
+
+         var col = searchColumns[j];
+         if (row[col] && row[col].search(new RegExp(queries[j], "i")) != -1) {
+            console.log('-------------------------------------------------------------------');
+            console.log(`${row[0]}[]${row[1]}: ${row[2]}`);
+            console.log(`\t${row[3]}`);
+            console.log('');
+         }
+      }
+      console.log('');
+   }
+}
+function search(lines, searchColumn, query, header) {
    console.log(`---------------------- [[ ${header} ]] -------------------------------`);
    var i;
    for (i=0; i<lines.length; ++i) {
       var row = lines[i].split(',');
-      if (row[2] && row[2].search(new RegExp(query, "i")) != -1) {
+      if (row[searchColumn] && row[searchColumn].search(new RegExp(query, "i")) != -1) {
          console.log('-------------------------------------------------------------------');
-         console.log(`${row[1]}: ${row[2]}`);
+         console.log(`${row[0]}[]${row[1]}: ${row[2]}`);
          console.log(`\t${row[3]}`);
          console.log('');
       }
@@ -98,4 +169,19 @@ function search(lines, query, header) {
    console.log('');
 }
 
-// console.log(program.opts());
+function misc_search(lines, query, header) {
+   console.log(`---------------------- [[ ${header} ]] -------------------------------`);
+   var i;
+   for (i=0; i<lines.length; ++i) {
+      var row = lines[i].split(',');
+      var col2 = (row[2] && row[2].search(new RegExp(query, "i")) != -1);
+      var col3 = (row[2] && row[2].search(new RegExp(query, "i")) != -1);
+      if (col2 || col3) {
+         console.log('-------------------------------------------------------------------');
+         console.log(`${row[0]}[]${row[1]}: ${row[2]}`);
+         console.log(`\t${row[3]}`);
+         console.log('');
+      }
+   }
+   console.log('');
+}
