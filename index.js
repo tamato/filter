@@ -38,6 +38,16 @@ if (program.update) {
     console.log('Pulling over latest DLog...')
     const output = execSync('~/bin/grabLatest.sh', { encoding: 'utf-8'}); // the default is 'buffer'
     console.log(output);
+
+    // log=$(ssh root@10.183.177.118 "ls -t /data/log | head -1")
+    // const target = execSync('ssh board "ls -t /data/log | head -1"', { encoding: 'utf-8'}); // the default is 'buffer'
+    // scp root@10.183.177.118:/data/log/$log ~/logs
+
+   //  execSync(`touch ~/logs/${target}`, { encoding: 'utf-8'}); // the default is 'buffer'
+   //  execSync(`scp board:/data/log/${target} ~/logs/${target}`, { encoding: 'utf-8'}); // the default is 'buffer'
+   //  execSync(`dlogparser ~/logs/${target} ~/logs`, { encoding: 'utf-8'}); // the default is 'buffer'
+   //  execSync(`cp ~/logs/${target}.csv ~/bin/dlog/latest.csv`, { encoding: 'utf-8'}); // the default is 'buffer'
+   //  console.log(`Latest DLog file: ${target}`, { encoding: 'utf-8'});
 }
 
 var target = `/home/tamausb/bin/dlog/latest.csv`
@@ -73,115 +83,58 @@ rl.on('line', (line) => {
 
    var cols = [2,3];
    var queryList = [];
-   var searchHeader = [];
-   if (program.search) {
-      queryList.append(program.search);
-      searchHeader.append(`Misc Search: ${program.search}`);
-   }
+   var headers = [];
    if (program.errors == true) {
-      queryList.append('_error');
-      searchHeader.append('Errors');
+      queryList.push('_error');
+      headers.push('Errors');
    }
    if (program.alarms == true) {
-      queryList.append('Alarm raised: ');
-      searchHeader.append('Alarms');
+      queryList.push('Alarm raised: ');
+      headers.push('Alarms');
    }
-
    if (program.search) {
-      misc_search(lines, program.search, `Misc Search: ${program.search}`);
+      queryList.push(program.search);
+      headers.push(`Misc Search: ${program.search}`);
    }
-   else {
-      if (program.errors == true) {
-         search(lines, 2, '_error', 'Errors')
-      }
-
-      if (program.alarms == true) {
-         search(lines, 3, 'Alarm raised: ', 'Alarms')
-      }
-   }
-
-   if (program.outFile) {
-      var output = '';
-      var i;
-      for (i=0; i<lines.length; ++i) {
-         var row = lines[i].split(',');
-         if (row[2]) {
-            var anyErrors = (row[2].search(new RegExp('_error', "i")) != -1);
-            var customSearch = false;
-            if (program.search) {
-               customSearch = (row[2].search(new RegExp(program.search, "i")) != -1);
-            }
-
-            if ( anyErrors || customSearch ) {
-               output += row[0] + ',' + row[1] + ',' + row[2] + ',' + row[3] + ',\n'
-            }
-         }
-         else if (row[3]) {
-            var anyAlarms = (row[3].search(new RegExp('Alarm raised:', "i")) != -1);
-            var customSearch = false;
-            if (program.search) {
-               customSearch = (row[3].search(new RegExp(program.search, "i")) != -1);
-            }
-
-            if ( anyAlarms || customSearch ) {
-               output += row[0] + ',' + row[1] + ',' + row[2] + ',' + row[3] + ',\n'
-            }
-         }
-      }
-      fs.writeFileSync(program.outFile, output);
-   }
-
+   search(lines, cols, queryList, headers, program.outFile);
    // console.log(program.opts());
 });
 
-function search(lines, searchColumns, queries, headers) {
-   var i;
+function search(lines, searchColumns, queries, headers, outFile) {
+   var results = {};
+   for (h in headers) {
+      results[headers[h]] = '';
+   }
+
+   var output = '';
+   var i, j, k;
    for (i=0; i<lines.length; ++i) {
       var row = lines[i].split(',');
 
-      var j = 0;
       for (j = 0; j < searchColumns.length; ++j){
-         console.log(`---------------------- [[ ${headers[j]} ]] -------------------------------`);
-
          var col = searchColumns[j];
-         if (row[col] && row[col].search(new RegExp(queries[j], "i")) != -1) {
-            console.log('-------------------------------------------------------------------');
-            console.log(`${row[0]}[]${row[1]}: ${row[2]}`);
-            console.log(`\t${row[3]}`);
-            console.log('');
+
+         for (k = 0; k < queries.length; ++k){
+            if (row[col] && row[col].search(new RegExp(queries[k], "i")) != -1) {
+               results[headers[k]] += `${row[0]}[]${row[1]}: ${row[2]}\n`;
+               results[headers[k]] += `\t${row[3]}\n`;
+               results[headers[k]] += '\n';
+
+               if (outFile) {
+                  output += row[0] + ',' + row[1] + ',' + row[2] + ',' + row[3] + ',\n'
+               }
+            }
          }
       }
-      console.log('');
    }
-}
-function search(lines, searchColumn, query, header) {
-   console.log(`---------------------- [[ ${header} ]] -------------------------------`);
-   var i;
-   for (i=0; i<lines.length; ++i) {
-      var row = lines[i].split(',');
-      if (row[searchColumn] && row[searchColumn].search(new RegExp(query, "i")) != -1) {
-         console.log('-------------------------------------------------------------------');
-         console.log(`${row[0]}[]${row[1]}: ${row[2]}`);
-         console.log(`\t${row[3]}`);
-         console.log('');
-      }
-   }
-   console.log('');
-}
 
-function misc_search(lines, query, header) {
-   console.log(`---------------------- [[ ${header} ]] -------------------------------`);
-   var i;
-   for (i=0; i<lines.length; ++i) {
-      var row = lines[i].split(',');
-      var col2 = (row[2] && row[2].search(new RegExp(query, "i")) != -1);
-      var col3 = (row[2] && row[2].search(new RegExp(query, "i")) != -1);
-      if (col2 || col3) {
-         console.log('-------------------------------------------------------------------');
-         console.log(`${row[0]}[]${row[1]}: ${row[2]}`);
-         console.log(`\t${row[3]}`);
-         console.log('');
-      }
+   for (h in headers) {
+      var message = results[headers[h]];
+      console.log(`---------------------- [[ ${headers[h]} ]] -------------------------------`);
+      console.log(message);
    }
-   console.log('');
+
+   if (outFile) {
+      fs.writeFileSync(outFile, output);
+   }
 }
