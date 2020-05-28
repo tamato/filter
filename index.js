@@ -118,7 +118,7 @@ function search(lines, searchColumns, queries, headers, outFile) {
 
          for (k = 0; k < queries.length; ++k){
             if (row[col] && row[col].search(new RegExp(queries[k], "i")) != -1) {
-               results[headers[k]] += `[${i+1}] ${row[1]}: ${row[2]}\n`;
+               results[headers[k]] += `[${row[0]}] ${row[1]}: ${row[2]}\n`;
                results[headers[k]] += `\t${row[3]}\n`;
                results[headers[k]] += '\n';
 
