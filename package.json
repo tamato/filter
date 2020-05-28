@@ -1,7 +1,7 @@
 {
   "name": "filter",
   "version": "1.0.0",
-  "description": "Search through Errors and Alarms in Dlog files",
+  "description": "Filter Errors, Alarms and misc in Dlog files",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "bin": {
-    "searchDlog": "./index.js"
+    "filterDlog": "./index.js"
   },
   "dependencies": {
     "commander": "^4.0.1"
