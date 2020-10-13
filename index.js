@@ -9,7 +9,6 @@ program
    .option('-a, --no-alarms', 'Do not print out alarms')
    .option('-e, --no-errors', 'Do not print out *_error entries')
    .option('-f, --file <file>', 'File to parse, default is ~/bin/dlog/latest.csv')
-   .option('-o, --out-file <file>', 'File to write results to')
    .option('-s, --search <query>', 'Misc query to find')
    .option('-u, --update', 'Update the latest.csv file')
    .on('--help', function (){
@@ -19,7 +18,7 @@ program
       console.log('\t"Discover bus" // doesn\'t work for some reason, just use "bus" ');
       console.log('');
       console.log('-- Determine which nodes are in programming mode');
-      console.log('\t_CanNodeProgrammer');
+      console.log('\t"_CanNodeProgrammer"');
       console.log('');
       console.log('-- Stages of mender update and firmware update');
       console.log('\t"Mender update triggered"');
@@ -29,8 +28,18 @@ program
       console.log('\t"verify in process"');
       console.log('\t"mender update"');
       console.log('');
+      console.log('-- ConfigWriter raised an alarm');
+      console.log('\t-With a message like the following:');
+      console.log('\t Alarm raised: ConfigError From: ../Common/Procedure/Monitors/EnableConditions.cpp(65) Info: Invalid EnableType for EnableConditions');
+      console.log('\t"Key.*does not exist"');
+      console.log('');
       console.log('-- Process Status transistions');
       console.log('\t"ProcessStatus"');
+      console.log('');
+      console.log('-- DEO Override data');
+      console.log('\t"DeoServer incoming overrides: {\'OverrideData.*<item>"');
+      console.log('\t- Special Note: The system will start acting on data the moment "deoserver incoming.." is set, which could be BEFORE it is written to the DLog');
+      console.log('\t\tthis matters when it seems like the system is happening out of order. It just takes time to update the DLog');
       console.log('');
    }).parse(process.argv);
 
@@ -98,17 +107,16 @@ rl.on('line', (line) => {
       queryList.push(program.search);
       headers.push(`Misc Search: ${program.search}`);
    }
-   search(lines, cols, queryList, headers, program.outFile);
+   search(lines, cols, queryList, headers);
    // console.log(program.opts());
 });
 
-function search(lines, searchColumns, queries, headers, outFile) {
+function search(lines, searchColumns, queries, headers) {
    var results = {};
    for (h in headers) {
-      results[headers[h]] = '';
+      results[headers[h]] = {};
    }
 
-   var output = '';
    var i, j, k;
    for (i=0; i<lines.length; ++i) {
       var row = lines[i].split(',', 4);
@@ -118,13 +126,16 @@ function search(lines, searchColumns, queries, headers, outFile) {
 
          for (k = 0; k < queries.length; ++k){
             if (row[col] && row[col].search(new RegExp(queries[k], "i")) != -1) {
-               results[headers[k]] += `[${row[0]}] ${row[1]}: ${row[2]}\n`;
-               results[headers[k]] += `\t${row[3]}\n`;
-               results[headers[k]] += '\n';
+               var ptime = getPrimitiveTime(row[1]);
 
-               if (outFile) {
-                  output += row[0] + ',' + row[1] + ',' + row[2] + ',' + row[3] + ',\n'
-               }
+               // column 0 is the count number
+               // column 1 has the time stamp
+               // column 2 output type (*_error, *_info) and file the message comes from
+               // column 3 output message
+               var msg = '';
+               msg += `[${row[0]}] ${row[1]}: ${row[2]}\n`;
+               msg += `\t${row[3]}\n`;
+               results[headers[k]][ptime] = msg;
             }
          }
       }
@@ -132,11 +143,33 @@ function search(lines, searchColumns, queries, headers, outFile) {
 
    for (h in headers) {
       var message = results[headers[h]];
-      console.log(`---------------------- [[ ${headers[h]} ]] -------------------------------`);
-      console.log(message);
-   }
+      sort(message);
 
-   if (outFile) {
-      fs.writeFileSync(outFile, output);
+      console.log(`---------------------- [[ ${headers[h]} ]] -------------------------------`);
+      for (m in message) {
+         console.log(message[m]);
+      }
+      console.log('');
    }
+}
+
+function sort(lines) {
+   // Sort based on time
+}
+
+function getPrimitiveTime(time) {
+   // format is 2020-10-02 01:20:10.044
+   var regex = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})/;
+
+   var tag = time.match(regex)
+   var y = tag[1]; // year
+   var m = tag[2]; // month
+   var d = tag[3]; // day
+   var h = tag[4]; // hour
+   var n = tag[5]; // minute
+   var s = tag[6]; // second
+   var u = tag[7]; // millisecond
+   var primitive = new Date(y,m,d,h,n,s,u).valueOf();
+
+   return primitive;
 }
